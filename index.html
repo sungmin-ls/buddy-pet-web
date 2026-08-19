@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/buddy-pet-web/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Buddy - AI 宠物学习伙伴">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Buddy">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Buddy</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- WASM MIME 兼容补丁：把 Response 先转 ArrayBuffer 再编译，避免服务器 MIME 不对导致 iOS Safari 报错 -->
+  <script>
+  (function () {
+    var _compile = WebAssembly.compile.bind(WebAssembly);
+    var _instantiate = WebAssembly.instantiate.bind(WebAssembly);
+
+    function toBuffer(src) {
+      return Promise.resolve(src).then(function (r) {
+        if (typeof r === 'string') return fetch(r).then(function (x) { return x.arrayBuffer(); });
+        if (r && typeof r.arrayBuffer === 'function') return r.arrayBuffer();
+        return r;
+      });
+    }
+
+    try {
+      Object.defineProperty(WebAssembly, 'compileStreaming', {
+        configurable: true, writable: true,
+        value: function (src) { return toBuffer(src).then(_compile); }
+      });
+      Object.defineProperty(WebAssembly, 'instantiateStreaming', {
+        configurable: true, writable: true,
+        value: function (src, imports) {
+          return toBuffer(src).then(function (b) { return _instantiate(b, imports); });
+        }
+      });
+    } catch (e) {}
+  })();
+  </script>
+
+  <!-- 清除旧 Service Worker 与缓存 -->
+  <script>
+  (function () {
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (r) { r.unregister(); });
+        });
+      }
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+      }
+    } catch (e) {}
+  })();
+  </script>
+  <style>
+    #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#FFF8F0;z-index:9999;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;}
+    .loader-box{text-align:center;color:#7A5C46;}
+    .paw{font-size:56px;animation:bob 1s ease-in-out infinite;}
+    .spinner{width:36px;height:36px;margin:16px auto 8px;border:4px solid #FFD9B8;border-top-color:#FF9E5E;border-radius:50%;animation:spin .8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+  </style>
+</head>
+<body>
+  <script>
+  /* 强制刷新：清掉旧 service worker 与缓存，确保每次打开都拉最新包（解决 iOS PWA 缓存旧 JS 导致按钮失效） */
+  (function(){
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.unregister(); }catch(e){} }); });
+      }
+      if (window.caches && window.caches.keys) {
+        window.caches.keys().then(function(keys){ keys.forEach(function(k){ try{ window.caches.delete(k); }catch(e){} }); });
+      }
+    } catch(e){}
+  })();
+  </script>
+  <!-- 必须在 flutter_bootstrap.js 之前：拦截 fetch 给 .wasm 修正 Content-Type -->
+  <script>
+  (function(){
+    if (!window.fetch) return;
+    var _fetch = window.fetch.bind(window);
+    function fixResp(resp){
+      if (!resp || !resp.headers || !resp.headers.get) return resp;
+      var ct = resp.headers.get('content-type') || '';
+      if (ct.indexOf('application/wasm') >= 0) return resp;
+      return resp.arrayBuffer().then(function(buf){
+        return new Response(buf, {
+          status: 200, statusText: 'OK',
+          headers: new Headers({ 'Content-Type': 'application/wasm', 'Content-Length': String(buf.byteLength) })
+        });
+      });
+    }
+    window.fetch = function(input, init){
+      try {
+        var url = (typeof input === 'string') ? input : (input && input.url) || '';
+        if (/\.wasm(\?|$)/.test(url)) { return _fetch(input, init).then(fixResp); }
+      } catch(e) {}
+      return _fetch(input, init);
+    };
+  })();
+  </script>
+  <!-- WebAssembly.compileStreaming 兜底：MIME 不对时改用 compile(buf) -->
+  <script>
+  (function(){
+    if (!window.WebAssembly || !window.WebAssembly.compileStreaming) return;
+    try {
+      var _cs = WebAssembly.compileStreaming.bind(WebAssembly);
+      var _compile = WebAssembly.compile.bind(WebAssembly);
+      Object.defineProperty(WebAssembly, 'compileStreaming', {
+        value: function(source){
+          try {
+            return Promise.resolve(source).then(function(resp){
+              if (resp && typeof resp === 'object' && resp.headers && resp.headers.get) {
+                var ct = resp.headers.get('content-type') || '';
+                if (ct.indexOf('application/wasm') >= 0) { return _cs(resp); }
+              }
+              if (resp && typeof resp.arrayBuffer === 'function') {
+                return resp.arrayBuffer().then(function(buf){ return _compile(buf); });
+              }
+              return _cs(source);
+            });
+          } catch(e) { return Promise.reject(e); }
+        },
+        writable: true, configurable: true
+      });
+    } catch(e) {}
+  })();
+  </script>
+
+  <div id="loader">
+    <div class="loader-box">
+      <div class="paw">🐶</div>
+      <div class="spinner"></div>
+      <p>正在唤醒 Buddy…</p>
+    </div>
+  </div>
+  <script>
+    (function(){
+      function hideLoader(){var l=document.getElementById('loader');if(l)l.remove();}
+      var obs=new MutationObserver(function(){
+        if(document.querySelector('flt-glass-pane')||document.querySelector('canvas')){hideLoader();obs.disconnect();}
+      });
+      obs.observe(document.body,{childList:true,subtree:true});
+      setTimeout(hideLoader,8000);
+    })();
+  </script>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+    <!-- 可见加载提示 + 错误捕获 -->
+  <div id="buddy-loader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fef6e4;z-index:9999;font-family:-apple-system,system-ui,sans-serif;color:#443A60;">
+    <div style="font-size:48px;margin-bottom:16px;">🐶</div>
+    <div style="font-size:20px;font-weight:600;">Buddy 正在加载…</div>
+    <div id="buddy-step" style="font-size:14px;margin-top:8px;color:#8B7E5A;">正在准备引擎</div>
+    <div id="buddy-diag" style="margin-top:16px;font-size:11px;font-family:Menlo,monospace;color:#8B7E5A;background:#fff8e1;padding:10px 14px;border-radius:8px;border:1px solid #ffd54f;max-width:90%;text-align:left;line-height:1.5;"></div>
+    <div id="buddy-err" style="display:none;font-size:13px;margin-top:20px;padding:12px 16px;background:#fff3f3;border:1px solid #ffb3b3;border-radius:8px;max-width:90%;word-break:break-all;white-space:pre-wrap;color:#a00;"></div>
+    <button id="buddy-skip" style="display:none;margin-top:16px;padding:8px 16px;background:#443a60;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Buddy 已加载？点这里继续</button>
+  </div>
+  <script>
+  (function(){
+    var step=document.getElementById('buddy-step');
+    var errBox=document.getElementById('buddy-err');
+    var diag=document.getElementById('buddy-diag');
+    var skipBtn=document.getElementById('buddy-skip');
+    function showErr(msg,detail){ errBox.style.display='block'; errBox.textContent='加载出错：'+msg+'\n\n'+(detail||'请截图发给开发者。'); }
+    window.addEventListener('error',function(e){ showErr((e.message||e.error||'未知错误'),'@ '+((e.filename||'').split('/').pop())+':'+e.lineno+':'+e.colno+'\n'+(e.error&&e.error.stack||'')); });
+    window.addEventListener('unhandledrejection',function(e){ var r=e.reason; showErr((r&&(r.message||r.toString)||'未知异步错误'),(r&&r.stack||'')); });
+    var t0=Date.now();
+    function renderDiag(){
+      var dt=Math.round((Date.now()-t0)/1000);
+      var hasFlutter=!!(window._flutter&&window._flutter.loader);
+      var hasCanvasKit=!!window.flutterCanvasKit;
+      var hasFltPane=!!document.querySelector('flt-glass-pane');
+      diag.innerHTML='⏱️ '+dt+'s<br>• _flutter.loader: '+(hasFlutter?'✅':'⏳')+'<br>• flutterCanvasKit: '+(hasCanvasKit?'✅':'⏳')+'<br>• <flt-glass-pane>: '+(hasFltPane?'✅':'⏳')+'<br>'+(hasFlutter&&!hasCanvasKit?'💡 canvaskit 引擎加载中（7MB wasm）<br>':'')+(hasCanvasKit&&!hasFltPane?'💡 canvaskit 已就绪，正在挂载 DOM<br>':'');
+    }
+    var timer=setInterval(function(){
+      renderDiag();
+      var dt=Math.round((Date.now()-t0)/1000);
+      if(dt>3 && !window._flutter){ step.textContent='引擎脚本加载中… ('+dt+'秒)'; }
+      if(dt>8 && !window._flutter){ step.textContent='引擎脚本超时 ('+dt+'秒)'; }
+      if(window._flutter && window._flutter.loader){ step.textContent='引擎已就绪，正在初始化 Buddy…'; }
+      if(document.querySelector('flt-glass-pane')){ var loader=document.getElementById('buddy-loader'); if(loader) loader.style.display='none'; clearInterval(timer); }
+      if(dt>30 && !document.querySelector('flt-glass-pane')){ step.textContent='canvaskit 加载较慢，请再等 30 秒…'; }
+      if(dt>60 && !document.querySelector('flt-glass-pane')){ step.textContent='已等待 60 秒仍未渲染'; skipBtn.style.display='block'; }
+    },500);
+    skipBtn.addEventListener('click',function(){ var loader=document.getElementById('buddy-loader'); if(loader) loader.style.display='none'; });
+    renderDiag();
+  })();
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
