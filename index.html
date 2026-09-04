@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/buddy-pet-web/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Buddy - AI 宠物学习伙伴">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Buddy">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Buddy</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- WASM MIME 兼容补丁：把 Response 先转 ArrayBuffer 再编译，避免服务器 MIME 不对导致 iOS Safari 报错 -->
+  <script>
+  (function () {
+    var _compile = WebAssembly.compile.bind(WebAssembly);
+    var _instantiate = WebAssembly.instantiate.bind(WebAssembly);
+
+    function toBuffer(src) {
+      return Promise.resolve(src).then(function (r) {
+        if (typeof r === 'string') return fetch(r).then(function (x) { return x.arrayBuffer(); });
+        if (r && typeof r.arrayBuffer === 'function') return r.arrayBuffer();
+        return r;
+      });
+    }
+
+    try {
+      Object.defineProperty(WebAssembly, 'compileStreaming', {
+        configurable: true, writable: true,
+        value: function (src) { return toBuffer(src).then(_compile); }
+      });
+      Object.defineProperty(WebAssembly, 'instantiateStreaming', {
+        configurable: true, writable: true,
+        value: function (src, imports) {
+          return toBuffer(src).then(function (b) { return _instantiate(b, imports); });
+        }
+      });
+    } catch (e) {}
+  })();
+  </script>
+
+  <!-- 注册自管 Service Worker：代码 network-first（保新鲜），资源 cache-first（保快）。 -->
+  <!-- 版本号 __BUDDY_SW_VERSION__ 由构建脚本替换；版本变更时旧缓存自删，避免旧资源滞留。 -->
+  <script>
+  (function(){
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/buddy-pet-web/buddy-sw.js?v=20260904-063014').catch(function(){});
+      }
+    } catch (e) {}
+  })();
+  </script>
+  <style>
+    #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#FFF8F0;z-index:9999;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;}
+    .loader-box{text-align:center;color:#7A5C46;}
+    .paw{font-size:56px;animation:bob 1s ease-in-out infinite;}
+    .spinner{width:36px;height:36px;margin:16px auto 8px;border:4px solid #FFD9B8;border-top-color:#FF9E5E;border-radius:50%;animation:spin .8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+  </style>
+  <!-- 防误触①：锁定页面级滚动与尺寸，阻断 iOS Safari 边缘滑动（返回/前进）造成的空白页。
+       Flutter Web 的滚动由引擎 pointer 自己合成，所以外层 overflow:hidden 不会影响应用内滚动。 -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden !important;
+      overscroll-behavior: none !important;
+      overscroll-behavior-x: contain !important;
+      overscroll-behavior-y: contain !important;
+      position: fixed;
+      inset: 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- 必须在 flutter_bootstrap.js 之前：拦截 fetch 给 .wasm 修正 Content-Type -->
+  <script>
+  (function(){
+    if (!window.fetch) return;
+    var _fetch = window.fetch.bind(window);
+    function fixResp(resp){
+      if (!resp || !resp.headers || !resp.headers.get) return resp;
+      var ct = resp.headers.get('content-type') || '';
+      if (ct.indexOf('application/wasm') >= 0) return resp;
+      return resp.arrayBuffer().then(function(buf){
+        return new Response(buf, {status:200,statusText:'OK',headers:new Headers({'Content-Type':'application/wasm','Content-Length':String(buf.byteLength)})});
+      });
+    }
+    window.fetch = function(input, init){
+      try { var url=(typeof input==='string')?input:(input&&input.url)||''; if (/\.wasm(\?|$)/.test(url)) return _fetch(input,init).then(fixResp); } catch(e){}
+      return _fetch(input, init);
+    };
+  })();
+  </script>
+  <script>
+  (function(){
+    if (!window.WebAssembly || !window.WebAssembly.compileStreaming) return;
+    try {
+      var _cs=WebAssembly.compileStreaming.bind(WebAssembly);var _compile=WebAssembly.compile.bind(WebAssembly);
+      Object.defineProperty(WebAssembly,'compileStreaming',{value:function(source){try{return Promise.resolve(source).then(function(resp){if(resp&&typeof resp==='object'&&resp.headers.get){var ct=resp.headers.get('content-type')||'';if(ct.indexOf('application/wasm')>=0)return _cs(resp);}if(resp&&typeof resp.arrayBuffer==='function')return resp.arrayBuffer().then(function(buf){return _compile(buf);});return _cs(source);});}catch(e){return Promise.reject(e);}},writable:true,configurable:true});
+    } catch(e){}
+  })();
+  </script>
+
+  <!-- 占位：构建脚本会替换为带诊断+跳过按钮的强版加载器 -->
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <!--
+    防误触② / ③ / ④：iOS Safari 的「横向滑动 = 后退/前进」会触发整页跳到空白。
+       ② 全文档拦截任何明显横向 pan（不局限于边缘 24px），彻底消灭后退/前进手势；
+       ③ 阻止 iOS 双指/边缘手势起手（gesturestart）；
+       ④ 锁死 history：即便上面三道被穿透，popstate 也被 pushState 吞掉。
+       纵向滚动、App 内左右拖拽均不受影响（Flutter Web 内部用 pointer 合成滚动，不走原生 scroll）。
+  -->
+  <script>
+  (function(){
+    // ② 全文档横向 pan 拦截
+    var sx = 0, sy = 0, horizontalStart = false;
+    document.addEventListener('touchstart', function(e){
+      if (!e.touches || !e.touches.length) return;
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+      horizontalStart = false;
+    }, { passive: true, capture: true });
+    document.addEventListener('touchmove', function(e){
+      if (!e.touches || !e.touches.length || !e.cancelable) return;
+      var t = e.touches[0];
+      var dx = Math.abs(t.clientX - sx);
+      var dy = Math.abs(t.clientY - sy);
+      // 一旦发现明显横向 pan（dx 大于 dy 且超过 6px），后续全部拦
+      if (!horizontalStart && dx > 6 && dx > dy * 1.3) {
+        horizontalStart = true;
+      }
+      if (horizontalStart) e.preventDefault();
+    }, { passive: false, capture: true });
+    function resetPan(){ horizontalStart = false; }
+    document.addEventListener('touchend', resetPan, { passive: true, capture: true });
+    document.addEventListener('touchcancel', resetPan, { passive: true, capture: true });
+
+    // ③ 屏蔽 iOS 边缘/双指手势（iOS-only 事件）
+    document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { passive: false });
+    document.addEventListener('gesturechange', function(e){ e.preventDefault(); }, { passive: false });
+    document.addEventListener('gestureend', function(e){ e.preventDefault(); }, { passive: false });
+
+    // ④ 锁历史
+    try {
+      history.pushState(null, document.title, location.href);
+      window.addEventListener('popstate', function(){
+        history.pushState(null, document.title, location.href);
+      });
+    } catch(e){}
+  })();
+  </script>
+    <div id="buddy-loader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fef6e4;z-index:9999;font-family:-apple-system,system-ui,sans-serif;color:#443A60;">
+    <div style="font-size:48px;margin-bottom:16px;">\U0001f436</div><div style="font-size:20px;font-weight:600;">Buddy \u6b63\u5728\u52a0\u8f7d\u2026</div>
+    <div id="buddy-step" style="font-size:14px;margin-top:8px;color:#8B7E5A;">\u6b63\u5728\u51c6\u5907\u5f15\u64ce</div>
+    <div id="buddy-diag" style="margin-top:16px;font-size:11px;font-family:Menlo,monospace;color:#8B7E5A;background:#fff8e1;padding:10px 14px;border-radius:8px;border:1px solid #ffd54f;max-width:90%;text-align:left;line-height:1.5;"></div>
+    <div id="buddy-err" style="display:none;font-size:13px;margin-top:20px;padding:12px 16px;background:#fff3f3;border:1px solid #ffb3b3;border-radius:8px;max-width:90%;word-break:break-all;white-space:pre-wrap;color:#a00;"></div>
+    <button id="buddy-skip" style="display:none;margin-top:16px;padding:8px 16px;background:#443a60;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Buddy \u5df2\u52a0\u8f7d\uff1f\u70b9\u8fd9\u91cc\u7ee7\u7eed</button>
+  </div>
+  <script>
+  (function(){var step=document.getElementById('buddy-step'),errBox=document.getElementById('buddy-err'),diag=document.getElementById('buddy-diag'),skipBtn=document.getElementById('buddy-skip');function showErr(m,d){errBox.style.display='block';errBox.textContent='\u52a0\u8f7d\u51fa\u9519\uff1a'+m+'\n\n'+(d||'\u8bf7\u622a\u56fe\u53d1\u7ed9\u5f00\u53d1\u8005\u3002');}window.addEventListener('error',function(e){showErr((e.message||e.error||'\u672a\u77e5\u9519\u8bef'),'@ '+((e.filename||'').split('/').pop())+':'+e.lineno+':'+e.colno+'\n'+(e.error&&e.error.stack||''));});window.addEventListener('unhandledrejection',function(e){var r=e.reason;showErr((r&&(r.message||r.toString)||'\u672a\u77e5\u5f02\u6b65\u9519\u8bef'),(r&&r.stack||''));});var t0=Date.now();function rd(){var dt=Math.round((Date.now()-t0)/1000),f=!!(window._flutter&&window._flutter.loader),ck=!!window.flutterCanvasKit,pn=!!document.querySelector('flt-glass-pane');diag.innerHTML='\u23f1\ufe0f '+dt+'s<br>\u2022 _flutter.loader: '+(f?'\u2705':'\u23f3')+'<br>\u2022 flutterCanvasKit: '+(ck?'\u2705':'\u23f3')+'<br>\u2022 <flt-glass-pane>: '+(pn?'\u2705':'\u23f3')+'<br>'+(f&&!ck?'\U0001f4a1 canvaskit \u5f15\u64ce\u52a0\u8f7d\u4e2d\uff087MB\uff09<br>':'')+(ck&&!pn?'\U0001f4a1 canvaskit \u5c31\u7eea\uff0c\u6302\u8f7d DOM<br>':'');}var tm=setInterval(function(){rd();var dt=Math.round((Date.now()-t0)/1000);if(dt>3&&!window._flutter)step.textContent='\u5f15\u64ce\u811a\u672c\u52a0\u8f7d\u4e2d\u2026 ('+dt+'\u79d2)';if(dt>8&&!window._flutter)step.textContent='\u5f15\u64ce\u811a\u672c\u8d85\u65f6 ('+dt+'\u79d2)';if(window._flutter&&window._flutter.loader)step.textContent='\u5f15\u64ce\u5df2\u5c31\u7eea\uff0c\u6b63\u5728\u521d\u59cb\u5316 Buddy\u2026';if(document.querySelector('flt-glass-pane')){var l=document.getElementById('buddy-loader');if(l)l.style.display='none';clearInterval(tm);}if(dt>30&&!document.querySelector('flt-glass-pane'))step.textContent='canvaskit \u52a0\u8f7d\u8f83\u6162\uff0c\u518d\u7b49 30 \u79d2\u2026';if(dt>60&&!document.querySelector('flt-glass-pane')){step.textContent='\u5df2\u7b49\u5f85 60 \u79d2\u4ecd\u672a\u6e32\u67d3';skipBtn.style.display='block';}},500);skipBtn.addEventListener('click',function(){var l=document.getElementById('buddy-loader');if(l)l.style.display='none';});rd();})();
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
