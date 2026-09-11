@@ -11,8 +11,8 @@
  */
 (function(){
   'use strict';
-  // === 构建期常量（build_web.sh 会替换 '20260909-083541'）===
-  var SW_VERSION = '20260909-083541';
+  // === 构建期常量（build_web.sh 会替换 '20260911-015524'）===
+  var SW_VERSION = '20260911-015524';
   var ASSET_CACHE = 'buddy-assets-' + SW_VERSION;
   var PAGE_CACHE  = 'buddy-page-'  + SW_VERSION;
 
